@@ -99,17 +99,50 @@ export const Checker = () => {
       setText(t);
       toast.success(`Loaded ${f.name}`);
     } else {
-      toast.info("Demo mode: simulated analysis for binary files. Real PDF/DOCX/PPTX parsing requires backend.");
-      setText(text || "Sample document content extracted from " + f.name + ". Academic integrity is essential to learning.");
+      setLoading(true);
+      toast.info(`Extracting text from ${f.name}...`);
+      try {
+        const formData = new FormData();
+        formData.append("file", f);
+        const res = await fetch("http://localhost:3001/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.text) {
+          setText(data.text);
+          toast.success(`Successfully extracted text from ${f.name}`);
+        } else {
+          throw new Error(data.error || "Failed to extract text");
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Could not parse file. Is the backend running?");
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const run = async () => {
     if (!text.trim()) { toast.error("Please enter some text or upload a file."); return; }
     setLoading(true); setReport(null);
-    await new Promise(r => setTimeout(r, 900));
-    setReport(analyze(text, fileName, active));
-    setLoading(false);
+    try {
+      const res = await fetch("http://localhost:3001/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, tool: active }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+         setReport({ ...data, fileName });
+      } else {
+         throw new Error(data.error || "Analysis failed");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to analyze text. Is the backend running?");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const download = () => {
