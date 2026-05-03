@@ -13,7 +13,7 @@ export const CTA = () => (
           <p className="text-muted-foreground md:text-lg max-w-xl mx-auto mb-8">Join thousands of students and educators using IntegrityAI today.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button variant="hero" size="lg" asChild>
-              <a href="#demo">Start Checking Now <ArrowRight className="h-4 w-4" /></a>
+              <a href="#checker">Start Checking Now <ArrowRight className="h-4 w-4" /></a>
             </Button>
             <Button variant="glass" size="lg" asChild>
               <a href="#features">Explore features</a>
@@ -36,14 +36,13 @@ export const Footer = () => (
             </div>
             <span className="font-bold">Integrity<span className="gradient-text">AI</span></span>
           </a>
-          <p className="text-sm text-muted-foreground max-w-sm">Explainable plagiarism &amp; AI detection. Free for students, trusted by institutions.</p>
+          <p className="text-sm text-muted-foreground max-w-sm">Explainable plagiarism &amp; AI detection. Trusted by students, researchers and institutions.</p>
         </div>
         <div>
           <div className="font-semibold text-sm mb-3">Product</div>
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li><a href="#features" className="hover:text-primary transition">Features</a></li>
-            <li><a href="#demo" className="hover:text-primary transition">Demo</a></li>
-            <li><a href="#pricing" className="hover:text-primary transition">Pricing</a></li>
+            <li><a href="#checker" className="hover:text-primary transition">Demo</a></li>
           </ul>
         </div>
         <div>
