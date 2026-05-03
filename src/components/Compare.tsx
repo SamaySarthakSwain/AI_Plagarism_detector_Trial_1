@@ -1,7 +1,7 @@
 import { Check, X } from "lucide-react";
 
 const rows = [
-  { f: "Free for students", us: true, t: false, s: false, p: false },
+  
   { f: "AI content detection", us: true, t: true, s: true, p: true },
   { f: "Explainable AI reasons", us: true, t: false, s: false, p: false },
   { f: "Sentence-level highlights", us: true, t: true, s: true, p: false },

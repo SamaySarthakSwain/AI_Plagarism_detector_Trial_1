@@ -13,7 +13,7 @@ export const Hero = () => {
         <div className="max-w-4xl mx-auto text-center animate-fade-up">
           <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 mb-6 text-sm">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-muted-foreground">Explainable AI · 100% free for students</span>
+            <span className="text-muted-foreground">Explainable AI · Built for academic integrity</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] mb-6">
@@ -29,7 +29,7 @@ export const Hero = () => {
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-14">
             <Button variant="hero" size="lg" asChild>
-              <a href="#demo">
+              <a href="#checker">
                 Check Your Document
                 <ArrowRight className="h-4 w-4" />
               </a>

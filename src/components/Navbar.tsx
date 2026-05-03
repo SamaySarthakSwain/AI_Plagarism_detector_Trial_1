@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 const links = [
   { href: "#features", label: "Features" },
   { href: "#how", label: "How it works" },
-  { href: "#demo", label: "Demo" },
+  { href: "#checker", label: "Demo" },
   { href: "#compare", label: "Compare" },
   { href: "#pricing", label: "Pricing" },
 ];
@@ -57,7 +57,7 @@ export const Navbar = () => {
               <Moon className={`h-5 w-5 absolute transition-all duration-500 text-primary ${theme === "light" ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-90 scale-50"}`} />
             </button>
             <Button variant="hero" size="sm" className="hidden sm:inline-flex" asChild>
-              <a href="#demo">Try Free</a>
+              <a href="#checker">Try Now</a>
             </Button>
             <button className="md:hidden h-10 w-10 grid place-items-center rounded-lg glass" onClick={() => setOpen(v => !v)} aria-label="Menu">
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
