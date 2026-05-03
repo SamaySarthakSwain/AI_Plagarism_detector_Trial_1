@@ -2,10 +2,9 @@ import { Navbar } from "@/components/Navbar";
 import { Hero } from "@/components/Hero";
 import { Features } from "@/components/Features";
 import { HowItWorks } from "@/components/HowItWorks";
-import { Demo } from "@/components/Demo";
+import { Checker } from "@/components/Checker";
 import { Compare } from "@/components/Compare";
 import { Testimonials } from "@/components/Testimonials";
-import { Pricing } from "@/components/Pricing";
 import { CTA, Footer } from "@/components/CTAFooter";
 
 const Index = () => (
@@ -15,10 +14,9 @@ const Index = () => (
       <Hero />
       <Features />
       <HowItWorks />
-      <Demo />
+      <Checker />
       <Compare />
       <Testimonials />
-      <Pricing />
       <CTA />
     </main>
     <Footer />
@@ -26,3 +24,4 @@ const Index = () => (
 );
 
 export default Index;
+
