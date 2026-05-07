@@ -8,6 +8,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -168,6 +169,35 @@ app.post('/api/analyze', async (req, res) => {
   // Weight heavily towards the maximum AI characteristics found
   let aiPct = Math.round((avgAi * 0.4) + (maxAi * 0.6));
   aiPct = Math.min(100, Math.max(0, aiPct));
+
+  // --- LOCAL MACHINE LEARNING MODEL ---
+  try {
+      const mlScore = await new Promise((resolve, reject) => {
+          const pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', 'predict.py'), text]);
+          let pyData = '';
+          pyProcess.stdout.on('data', (data) => pyData += data.toString());
+          pyProcess.stderr.on('data', (data) => console.error("Python ML Error:", data.toString()));
+          pyProcess.on('close', (code) => {
+              try {
+                  const result = JSON.parse(pyData.trim());
+                  if (result.aiScore !== undefined) {
+                      resolve(result.aiScore);
+                  } else {
+                      resolve(null);
+                  }
+              } catch (e) {
+                  resolve(null);
+              }
+          });
+      });
+      
+      if (mlScore !== null) {
+          aiPct = Math.round((aiPct * 0.4) + (mlScore * 0.6)); // Give local ML model 60% weight
+          reasons.unshift(`🧠 Local ML Model Analysis: ${Math.round(mlScore)}% AI probability.`);
+      }
+  } catch (err) {
+      console.log("Local ML Model skipped or failed.");
+  }
 
   // --- GEMINI ULTIMATE ACCURACY INTEGRATION ---
   if (process.env.GEMINI_API_KEY) {
