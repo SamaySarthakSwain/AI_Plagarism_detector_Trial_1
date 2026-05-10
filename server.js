@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
+import os from 'os';
 import express from 'express';
 import multer from 'multer';
 import cors from 'cors';
@@ -10,6 +11,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import serverless from 'serverless-http';
+import pdf from 'pdf-parse';
+import mammoth from 'mammoth';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,18 +33,25 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-// Helper to write buffer to tmp for 'any-text'
+// Helper to write buffer to a safe temporary location
 const bufferToTmpFile = async (buffer, originalName) => {
-  const tmpDir = '/tmp'; // Vercel's only writable directory
+  const sanitizedName = originalName.replace(/[^a-zA-Z0-9.]/g, '_');
+  const tmpDir = os.platform() === 'win32' ? path.join(os.tmpdir()) : '/tmp';
+  
   if (!fs.existsSync(tmpDir)) {
-    // Fallback for local dev if /tmp doesn't exist (Windows)
-    const localTmp = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(localTmp)) fs.mkdirSync(localTmp);
-    const filePath = path.join(localTmp, Date.now() + '_' + originalName);
-    fs.writeFileSync(filePath, buffer);
-    return filePath;
+    try {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    } catch (e) {
+      // Fallback to local uploads if tmp is not available
+      const localTmp = path.join(__dirname, 'uploads');
+      if (!fs.existsSync(localTmp)) fs.mkdirSync(localTmp, { recursive: true });
+      const filePath = path.join(localTmp, `${Date.now()}_${sanitizedName}`);
+      fs.writeFileSync(filePath, buffer);
+      return filePath;
+    }
   }
-  const filePath = path.join(tmpDir, Date.now() + '_' + originalName);
+  
+  const filePath = path.join(tmpDir, `${Date.now()}_${sanitizedName}`);
   fs.writeFileSync(filePath, buffer);
   return filePath;
 };
@@ -54,25 +64,40 @@ app.post('/api/upload', async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
     
-    // Decode base64 to buffer
     const buffer = Buffer.from(file, 'base64');
-    
-    // Write to a temporary file because any-text requires a path
-    tempFilePath = await bufferToTmpFile(buffer, filename);
-    const text = await getText(tempFilePath);
-    
-    // clean up temp file
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      fs.unlinkSync(tempFilePath);
+    let text = '';
+
+    const lowerName = filename.toLowerCase();
+    if (lowerName.endsWith('.pdf')) {
+      const data = await pdf(buffer);
+      text = data.text;
+    } else if (lowerName.endsWith('.docx')) {
+      const data = await mammoth.extractRawText({ buffer });
+      text = data.value;
+    } else if (lowerName.endsWith('.txt')) {
+      text = buffer.toString('utf8');
+    } else {
+      // Fallback for other formats using any-text
+      tempFilePath = await bufferToTmpFile(buffer, filename);
+      text = await getText(tempFilePath);
     }
     
+    // clean up temp file if one was created
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try { fs.unlinkSync(tempFilePath); } catch (e) {}
+    }
+    
+    if (!text || text.trim().length === 0) {
+      return res.status(422).json({ error: 'No readable text found in this file.' });
+    }
+
     res.json({ text });
   } catch (error) {
     console.error('File parsing error:', error);
     if (tempFilePath && fs.existsSync(tempFilePath)) {
-      fs.unlinkSync(tempFilePath);
+      try { fs.unlinkSync(tempFilePath); } catch (e) {}
     }
-    res.status(500).json({ error: 'Failed to extract text from file: ' + error.message });
+    res.status(500).json({ error: 'Failed to extract text: ' + error.message });
   }
 });
 

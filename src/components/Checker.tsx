@@ -111,15 +111,25 @@ export const Checker = () => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ file: base64, filename: f.name }),
           });
+
+          const contentType = res.headers.get("content-type");
+          if (!res.ok) {
+            const errorText = contentType?.includes("application/json")
+              ? (await res.json()).error
+              : await res.text();
+            throw new Error(errorText || `Server error: ${res.status}`);
+          }
+
           const data = await res.json();
           if (data.text) {
             setText(data.text);
             toast.success(`Successfully extracted text from ${f.name}`);
           } else {
-            throw new Error(data.error || "Failed to extract text");
+            throw new Error("No text content returned from server");
           }
         } catch (err: any) {
-          toast.error(err.message || "Could not parse file. Is the backend running?");
+          console.error("Upload error:", err);
+          toast.error(err.message || "Could not parse file. Check if backend is running.");
         } finally {
           setLoading(false);
         }
@@ -140,13 +150,19 @@ export const Checker = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, tool: active }),
       });
-      const data = await res.json();
-      if (res.ok) {
-         setReport({ ...data, fileName });
-      } else {
-         throw new Error(data.error || "Analysis failed");
+      
+      const contentType = res.headers.get("content-type");
+      if (!res.ok) {
+        const errorText = contentType?.includes("application/json") 
+          ? (await res.json()).error 
+          : await res.text();
+        throw new Error(errorText || `Analysis failed: ${res.status}`);
       }
+
+      const data = await res.json();
+      setReport({ ...data, fileName });
     } catch (err: any) {
+      console.error("Analysis error:", err);
       toast.error(err.message || "Failed to analyze text. Is the backend running?");
     } finally {
       setLoading(false);
