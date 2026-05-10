@@ -11,8 +11,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import serverless from 'serverless-http';
-import pdf from 'pdf-parse';
+import { createRequire } from 'module';
 import mammoth from 'mammoth';
+
+const require = createRequire(import.meta.url);
+// pdf-parse is CommonJS-only; must be loaded via require in ESM context
+const pdf = require('pdf-parse');
+
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,41 +69,106 @@ app.post('/api/upload', async (req, res) => {
     if (!file || !filename) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    
+
     const buffer = Buffer.from(file, 'base64');
     let text = '';
-
     const lowerName = filename.toLowerCase();
+
+    // ─── PDF ───────────────────────────────────────────────────────────────────
     if (lowerName.endsWith('.pdf')) {
       const data = await pdf(buffer);
       text = data.text;
+
+    // ─── Word (docx) ────────────────────────────────────────────────────────────
     } else if (lowerName.endsWith('.docx')) {
       const data = await mammoth.extractRawText({ buffer });
       text = data.value;
-    } else if (lowerName.endsWith('.txt')) {
-      text = buffer.toString('utf8');
-    } else {
-      // Fallback for other formats using any-text
+
+    // ─── Word (doc – old binary format via any-text) ─────────────────────────
+    } else if (lowerName.endsWith('.doc')) {
       tempFilePath = await bufferToTmpFile(buffer, filename);
       text = await getText(tempFilePath);
+
+    // ─── Plain text / Markdown / RTF ────────────────────────────────────────────
+    } else if (['.txt', '.md', '.markdown', '.rtf', '.log', '.csv', '.tsv', '.xml', '.yaml', '.yml'].some(ext => lowerName.endsWith(ext))) {
+      text = buffer.toString('utf8');
+
+    // ─── JSON – pretty-print so analyser reads well ──────────────────────────
+    } else if (lowerName.endsWith('.json')) {
+      try {
+        const parsed = JSON.parse(buffer.toString('utf8'));
+        // Flatten nested JSON to readable key: value pairs
+        const flatten = (obj, prefix = '') => {
+          return Object.entries(obj).reduce((acc, [k, v]) => {
+            const key = prefix ? `${prefix}.${k}` : k;
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+              acc.push(...flatten(v, key));
+            } else if (Array.isArray(v)) {
+              v.forEach((item, i) => {
+                if (typeof item === 'object') acc.push(...flatten(item, `${key}[${i}]`));
+                else acc.push(`${key}[${i}]: ${item}`);
+              });
+            } else {
+              acc.push(`${key}: ${v}`);
+            }
+            return acc;
+          }, []);
+        };
+        if (typeof parsed === 'object') {
+          text = flatten(parsed).join('\n');
+        } else {
+          text = String(parsed);
+        }
+      } catch {
+        text = buffer.toString('utf8'); // treat as raw text if not valid JSON
+      }
+
+    // ─── HTML – strip tags ──────────────────────────────────────────────────
+    } else if (['.html', '.htm'].some(ext => lowerName.endsWith(ext))) {
+      text = buffer.toString('utf8')
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+    // ─── XLSX / ODS / ODT via any-text (needs temp file) ────────────────────
+    } else if (['.xlsx', '.xls', '.odt', '.ods', '.pptx', '.ppt'].some(ext => lowerName.endsWith(ext))) {
+      tempFilePath = await bufferToTmpFile(buffer, filename);
+      text = await getText(tempFilePath);
+
+    // ─── Generic fallback – try UTF-8, reject binary ─────────────────────────
+    } else {
+      const raw = buffer.toString('utf8');
+      // Heuristic: if more than 30% of chars are non-printable, it's binary
+      const nonPrintable = (raw.match(/[\x00-\x08\x0E-\x1F\x7F-\x9F]/g) || []).length;
+      if (nonPrintable / raw.length > 0.3) {
+        return res.status(422).json({ error: `Unsupported file type: "${filename}". Please upload a PDF, Word, TXT, JSON, CSV, HTML, Markdown, or spreadsheet file.` });
+      }
+      text = raw;
     }
-    
+
     // clean up temp file if one was created
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       try { fs.unlinkSync(tempFilePath); } catch (e) {}
     }
-    
+
     if (!text || text.trim().length === 0) {
       return res.status(422).json({ error: 'No readable text found in this file.' });
     }
 
-    res.json({ text });
+    res.json({ text: text.trim() });
   } catch (error) {
     console.error('File parsing error:', error);
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       try { fs.unlinkSync(tempFilePath); } catch (e) {}
     }
     res.status(500).json({ error: 'Failed to extract text: ' + error.message });
+
   }
 });
 

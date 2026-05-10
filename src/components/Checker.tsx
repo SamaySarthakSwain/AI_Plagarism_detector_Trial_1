@@ -92,54 +92,49 @@ export const Checker = () => {
 
   const tool = tools.find(t => t.id === active)!;
 
-  const onFile = async (f: File) => {
+  const onFile = (f: File) => {
     setFileName(f.name);
-    if (f.name.endsWith(".txt") || f.type.startsWith("text/")) {
-      const t = await f.text();
-      setText(t);
-      toast.success(`Loaded ${f.name}`);
-    } else {
-      setLoading(true);
-      toast.info(`Extracting text from ${f.name}...`);
-      const reader = new FileReader();
-      reader.readAsDataURL(f);
-      reader.onload = async () => {
-        try {
-          const base64 = (reader.result as string).split(",")[1];
-          const res = await fetch("/api/upload", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ file: base64, filename: f.name }),
-          });
+    setLoading(true);
+    toast.info(`Extracting text from ${f.name}...`);
+    const reader = new FileReader();
+    reader.readAsDataURL(f);
+    reader.onload = async () => {
+      try {
+        const base64 = (reader.result as string).split(",")[1];
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file: base64, filename: f.name }),
+        });
 
-          const contentType = res.headers.get("content-type");
-          if (!res.ok) {
-            const errorText = contentType?.includes("application/json")
-              ? (await res.json()).error
-              : await res.text();
-            throw new Error(errorText || `Server error: ${res.status}`);
-          }
-
-          const data = await res.json();
-          if (data.text) {
-            setText(data.text);
-            toast.success(`Successfully extracted text from ${f.name}`);
-          } else {
-            throw new Error("No text content returned from server");
-          }
-        } catch (err: any) {
-          console.error("Upload error:", err);
-          toast.error(err.message || "Could not parse file. Check if backend is running.");
-        } finally {
-          setLoading(false);
+        const contentType = res.headers.get("content-type");
+        if (!res.ok) {
+          const errorText = contentType?.includes("application/json")
+            ? (await res.json()).error
+            : await res.text();
+          throw new Error(errorText || `Server error: ${res.status}`);
         }
-      };
-      reader.onerror = () => {
-        toast.error("Failed to read file.");
+
+        const data = await res.json();
+        if (data.text) {
+          setText(data.text);
+          toast.success(`Loaded ${f.name}`);
+        } else {
+          throw new Error("No text content returned from server");
+        }
+      } catch (err: unknown) {
+        console.error("Upload error:", err);
+        toast.error(err instanceof Error ? err.message : "Could not parse file. Check if backend is running.");
+      } finally {
         setLoading(false);
-      };
-    }
+      }
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read file.");
+      setLoading(false);
+    };
   };
+
 
   const run = async () => {
     if (!text.trim()) { toast.error("Please enter some text or upload a file."); return; }
