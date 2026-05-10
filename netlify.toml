@@ -3,6 +3,9 @@
   publish = "dist"
   functions = "functions"
 
+[build.environment]
+  NETLIFY = "true"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
@@ -14,4 +17,7 @@
   status = 200
 
 [functions]
-  node_bundle = true
+  node_bundler = "esbuild"
+
+[functions.api]
+  timeout = 26

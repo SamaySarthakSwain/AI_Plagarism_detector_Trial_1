@@ -27,10 +27,15 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+// Ensure uploads directory exists (safe for serverless - /tmp is writable, project dir is not)
+try {
+  const uploadsDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (e) {
+  // In serverless (Netlify/Vercel), the project dir is read-only — that's fine
+  console.log('Note: Could not create uploads dir (expected in serverless):', e.message);
 }
 
 const storage = multer.memoryStorage();
@@ -243,11 +248,12 @@ app.post('/api/analyze', async (req, res) => {
     if (/\b(according to|research shows|studies have|it is widely)\b/.test(lower)) plag += 40;
     plag = Math.min(99, plag + ((seed * 3) % 10));
 
-    if (tool === 'plagiarism' && len > 5) {
+    if (tool === 'plagiarism' && len > 5 && !process.env.VERCEL && !process.env.NETLIFY) {
        try {
            const searchPhrase = s.substring(0, 60);
            const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch="${encodeURIComponent(searchPhrase)}"&utf8=&format=json`;
            const response = await axios.get(searchUrl, {
+               timeout: 3000,
                headers: {
                    'User-Agent': 'AIPlagiarismDetector/1.0 (contact@example.com)'
                }
@@ -290,35 +296,55 @@ app.post('/api/analyze', async (req, res) => {
   let aiPct = Math.round((avgAi * 0.4) + (maxAi * 0.6));
   aiPct = Math.min(100, Math.max(0, aiPct));
 
-  // --- LOCAL MACHINE LEARNING MODEL ---
-  try {
-      const mlScore = await new Promise((resolve, reject) => {
-          const pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', 'predict.py')]);
-          pyProcess.stdin.write(text);
-          pyProcess.stdin.end();
-          let pyData = '';
-          pyProcess.stdout.on('data', (data) => pyData += data.toString());
-          pyProcess.stderr.on('data', (data) => console.error("Python ML Error:", data.toString()));
-          pyProcess.on('close', (code) => {
-              try {
-                  const result = JSON.parse(pyData.trim());
-                  if (result.aiScore !== undefined) {
-                      resolve(result.aiScore);
-                  } else {
-                      resolve(null);
-                  }
-              } catch (e) {
-                  resolve(null);
-              }
-          });
-      });
-      
-      if (mlScore !== null) {
-          aiPct = Math.round((aiPct * 0.4) + (mlScore * 0.6)); // Give local ML model 60% weight
-          reasons.unshift(`🧠 Local ML Model Analysis: ${Math.round(mlScore)}% AI probability.`);
-      }
-  } catch (err) {
-      console.log("Local ML Model skipped or failed.");
+  // --- LOCAL MACHINE LEARNING MODEL (local dev only — Python not available on Netlify/Vercel) ---
+  const isServerless = !!(process.env.VERCEL || process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT);
+  if (!isServerless) {
+    try {
+        const mlScore = await new Promise((resolve) => {
+            let resolved = false;
+            const safeResolve = (v) => { if (!resolved) { resolved = true; resolve(v); } };
+
+            let pyProcess;
+            try {
+                pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', 'predict.py')]);
+            } catch (spawnErr) {
+                safeResolve(null);
+                return;
+            }
+
+            pyProcess.on('error', () => safeResolve(null));
+
+            try {
+                pyProcess.stdin.write(text);
+                pyProcess.stdin.end();
+            } catch (stdinErr) {
+                safeResolve(null);
+                return;
+            }
+
+            let pyData = '';
+            pyProcess.stdout.on('data', (data) => pyData += data.toString());
+            pyProcess.stderr.on('data', (data) => console.error("Python ML Error:", data.toString()));
+            pyProcess.on('close', () => {
+                try {
+                    const result = JSON.parse(pyData.trim());
+                    safeResolve(result.aiScore !== undefined ? result.aiScore : null);
+                } catch (e) {
+                    safeResolve(null);
+                }
+            });
+
+            // Safety timeout — don't let Python hang the response
+            setTimeout(() => safeResolve(null), 8000);
+        });
+
+        if (mlScore !== null) {
+            aiPct = Math.round((aiPct * 0.4) + (mlScore * 0.6));
+            reasons.unshift(`🧠 Local ML Model Analysis: ${Math.round(mlScore)}% AI probability.`);
+        }
+    } catch (err) {
+        console.log("Local ML Model skipped or failed.");
+    }
   }
 
   // --- GEMINI ULTIMATE ACCURACY INTEGRATION ---
