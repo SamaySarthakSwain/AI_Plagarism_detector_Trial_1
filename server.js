@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
+import serverless from 'serverless-http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,32 +24,55 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir)
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + Date.now() + ext)
-  }
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
-const upload = multer({ storage: storage });
 
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+// Helper to write buffer to tmp for 'any-text'
+const bufferToTmpFile = async (buffer, originalName) => {
+  const tmpDir = '/tmp'; // Vercel's only writable directory
+  if (!fs.existsSync(tmpDir)) {
+    // Fallback for local dev if /tmp doesn't exist (Windows)
+    const localTmp = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(localTmp)) fs.mkdirSync(localTmp);
+    const filePath = path.join(localTmp, Date.now() + '_' + originalName);
+    fs.writeFileSync(filePath, buffer);
+    return filePath;
+  }
+  const filePath = path.join(tmpDir, Date.now() + '_' + originalName);
+  fs.writeFileSync(filePath, buffer);
+  return filePath;
+};
+
+app.post('/api/upload', async (req, res) => {
+  let tempFilePath = null;
   try {
-    if (!req.file) {
+    const { file, filename } = req.body;
+    if (!file || !filename) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    const text = await getText(req.file.path);
-    // clean up file
-    fs.unlinkSync(req.file.path);
+    
+    // Decode base64 to buffer
+    const buffer = Buffer.from(file, 'base64');
+    
+    // Write to a temporary file because any-text requires a path
+    tempFilePath = await bufferToTmpFile(buffer, filename);
+    const text = await getText(tempFilePath);
+    
+    // clean up temp file
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+    
     res.json({ text });
   } catch (error) {
     console.error('File parsing error:', error);
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
     }
-    res.status(500).json({ error: 'Failed to extract text from file' });
+    res.status(500).json({ error: 'Failed to extract text from file: ' + error.message });
   }
 });
 
@@ -173,7 +197,9 @@ app.post('/api/analyze', async (req, res) => {
   // --- LOCAL MACHINE LEARNING MODEL ---
   try {
       const mlScore = await new Promise((resolve, reject) => {
-          const pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', 'predict.py'), text]);
+          const pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', 'predict.py')]);
+          pyProcess.stdin.write(text);
+          pyProcess.stdin.end();
           let pyData = '';
           pyProcess.stdout.on('data', (data) => pyData += data.toString());
           pyProcess.stderr.on('data', (data) => console.error("Python ML Error:", data.toString()));
@@ -294,7 +320,15 @@ app.post('/api/analyze', async (req, res) => {
   });
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`Backend API running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3001;
+// Only start the server if we're not in a serverless environment
+const isServerless = process.env.VERCEL || process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT;
+
+if (!isServerless) {
+  app.listen(PORT, () => {
+    console.log(`Backend API running on http://localhost:${PORT}`);
+  });
+}
+
+export const handler = serverless(app);
+export default app;

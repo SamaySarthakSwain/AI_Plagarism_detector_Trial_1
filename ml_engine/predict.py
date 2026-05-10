@@ -4,11 +4,10 @@ import joblib
 import json
 
 def predict():
-    if len(sys.argv) < 2:
+    text = sys.stdin.read().strip()
+    if not text:
         print(json.dumps({"error": "No text provided"}))
         return
-
-    text = sys.argv[1]
     
     model_path = os.path.join(os.path.dirname(__file__), "ai_detector_model.pkl")
     

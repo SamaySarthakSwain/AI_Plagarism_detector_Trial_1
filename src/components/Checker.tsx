@@ -101,25 +101,33 @@ export const Checker = () => {
     } else {
       setLoading(true);
       toast.info(`Extracting text from ${f.name}...`);
-      try {
-        const formData = new FormData();
-        formData.append("file", f);
-        const res = await fetch("http://localhost:3001/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        if (data.text) {
-          setText(data.text);
-          toast.success(`Successfully extracted text from ${f.name}`);
-        } else {
-          throw new Error(data.error || "Failed to extract text");
+      const reader = new FileReader();
+      reader.readAsDataURL(f);
+      reader.onload = async () => {
+        try {
+          const base64 = (reader.result as string).split(",")[1];
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file: base64, filename: f.name }),
+          });
+          const data = await res.json();
+          if (data.text) {
+            setText(data.text);
+            toast.success(`Successfully extracted text from ${f.name}`);
+          } else {
+            throw new Error(data.error || "Failed to extract text");
+          }
+        } catch (err: any) {
+          toast.error(err.message || "Could not parse file. Is the backend running?");
+        } finally {
+          setLoading(false);
         }
-      } catch (err: any) {
-        toast.error(err.message || "Could not parse file. Is the backend running?");
-      } finally {
+      };
+      reader.onerror = () => {
+        toast.error("Failed to read file.");
         setLoading(false);
-      }
+      };
     }
   };
 
@@ -127,7 +135,7 @@ export const Checker = () => {
     if (!text.trim()) { toast.error("Please enter some text or upload a file."); return; }
     setLoading(true); setReport(null);
     try {
-      const res = await fetch("http://localhost:3001/api/analyze", {
+      const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, tool: active }),
