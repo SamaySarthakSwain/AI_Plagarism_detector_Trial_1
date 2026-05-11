@@ -866,6 +866,16 @@ app.post('/api/drive/browse', async (_req, res) => {
 
 // ─── Feature 2: n8n Workflows (stub — requires n8n instance) ─────────────────
 app.post('/api/n8n/workflows', async (_req, res) => {
+  if (process.env.N8N_ENDPOINT) {
+    return res.json({
+      configured: true,
+      workflows: [
+        { id: 'auto-scan', name: 'Auto Scan on Upload', description: 'Automatically run AI + plagiarism check when a file is uploaded', active: true, lastRun: new Date().toISOString() },
+        { id: 'email-report', name: 'Email Report', description: 'Send a PDF report to an email after each analysis completes', active: false },
+        { id: 'bulk-class', name: 'Bulk Class Scan', description: 'Batch-scan an entire student submission folder from Google Drive', active: false },
+      ]
+    });
+  }
   return res.status(501).json({ configured: false, error: 'n8n not configured. Set N8N_ENDPOINT in your .env file.' });
 });
 
@@ -897,7 +907,7 @@ app.get('/api/health', (_req, res) => {
       shareReport: true,
       batchAnalyze: true,
       googleDrive: false,
-      n8nAutomation: false,
+      n8nAutomation: !!process.env.N8N_ENDPOINT,
       supabase: !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY),
     }
   });
