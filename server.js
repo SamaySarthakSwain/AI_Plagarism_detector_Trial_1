@@ -496,9 +496,125 @@ function runMultimodalSearch(imagePath) {
   });
 }
 
+
+// ─── Helper: generic Python runner (stdin text → stdout JSON) ────────────────
+function runPythonEngine(scriptName, inputText, timeoutMs = 30000) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    const timer = setTimeout(() => finish({ error: `${scriptName} timed out after ${timeoutMs/1000}s` }), timeoutMs);
+    let pyProcess;
+    try {
+      pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', scriptName)]);
+    } catch (_) {
+      clearTimeout(timer);
+      return finish({ error: `Could not launch ${scriptName}` });
+    }
+    pyProcess.on('error', () => { clearTimeout(timer); finish({ error: `${scriptName} process error` }); });
+    try { pyProcess.stdin.write(inputText); pyProcess.stdin.end(); } catch (_) {
+      clearTimeout(timer); return finish({ error: `Could not write to ${scriptName} stdin` });
+    }
+    let out = '', errOut = '';
+    pyProcess.stdout.on('data', (d) => { out += d.toString(); });
+    pyProcess.stderr.on('data', (d) => { errOut += d.toString(); });
+    pyProcess.on('close', () => {
+      clearTimeout(timer);
+      try {
+        const match = out.match(/\{[\s\S]*\}/);
+        finish(JSON.parse(match ? match[0] : out.trim()));
+      } catch (e) {
+        finish({ error: `Failed to parse ${scriptName} output. stderr: ${errOut.slice(0,300)}` });
+      }
+    });
+  });
+}
+
+// ─── ROUTE: /api/stylometry (Feature 2: Writing Style Fingerprinting) ────────
+app.post('/api/stylometry', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text?.trim()) return res.status(400).json({ error: 'No text provided.' });
+    if (IS_SERVERLESS) return res.status(503).json({ error: 'Stylometry requires local server. Not available in serverless.' });
+    const result = await runPythonEngine('stylometry.py', text, 25000);
+    if (result.error) return res.status(500).json({ error: result.error });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ROUTE: /api/citations (Feature 4: Citation Fraud Detection) ──────────────
+app.post('/api/citations', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text?.trim()) return res.status(400).json({ error: 'No text provided.' });
+    if (IS_SERVERLESS) return res.status(503).json({ error: 'Citation check requires local server.' });
+    const result = await runPythonEngine('citation_fraud.py', text, 60000);
+    if (result.error) return res.status(500).json({ error: result.error });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ROUTE: /api/rewrite-chain (Feature 5: AI Rewrite Chain Detection) ────────
+app.post('/api/rewrite-chain', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text?.trim()) return res.status(400).json({ error: 'No text provided.' });
+    if (IS_SERVERLESS) return res.status(503).json({ error: 'Rewrite chain detection requires local server.' });
+    const result = await runPythonEngine('rewrite_chain.py', text, 15000);
+    if (result.error) return res.status(500).json({ error: result.error });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ROUTE: /api/internet-scan (Feature 7: Real-Time Internet Scanning) ───────
+app.post('/api/internet-scan', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text?.trim()) return res.status(400).json({ error: 'No text provided.' });
+    if (IS_SERVERLESS) return res.status(503).json({ error: 'Internet scanning requires local server.' });
+    const result = await runPythonEngine('internet_scan.py', text, 60000);
+    if (result.error) return res.status(500).json({ error: result.error });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ROUTE: /api/hybrid-authorship (Feature 8: Hybrid Authorship Segmentation)
+app.post('/api/hybrid-authorship', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text?.trim()) return res.status(400).json({ error: 'No text provided.' });
+    if (IS_SERVERLESS) return res.status(503).json({ error: 'Hybrid authorship analysis requires local server.' });
+    const result = await runPythonEngine('hybrid_authorship.py', text, 20000);
+    if (result.error) return res.status(500).json({ error: result.error });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', serverless: IS_SERVERLESS, gemini: !!process.env.GEMINI_API_KEY });
+  res.json({
+    status: 'ok',
+    serverless: IS_SERVERLESS,
+    gemini: !!process.env.GEMINI_API_KEY,
+    features: {
+      semanticSearch: !IS_SERVERLESS,
+      stylometry: !IS_SERVERLESS,
+      citationFraud: !IS_SERVERLESS,
+      rewriteChain: !IS_SERVERLESS,
+      internetScan: !IS_SERVERLESS,
+      hybridAuthorship: !IS_SERVERLESS,
+      multimodal: !IS_SERVERLESS,
+    }
+  });
 });
 
 // ─── Global error middleware (last resort) ────────────────────────────────────
@@ -517,3 +633,4 @@ if (!IS_SERVERLESS) {
 
 export const handler = serverless(app);
 export default app;
+
