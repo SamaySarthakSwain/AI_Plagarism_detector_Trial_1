@@ -2,16 +2,18 @@ import { Moon, Sun, ShieldCheck, Menu, X } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 
 const links = [
-  { href: "#features", label: "Features" },
-  { href: "#how", label: "How it works" },
-  { href: "#checker", label: "Demo" },
-  { href: "#compare", label: "Compare" },
+  { href: "/#features", label: "Features" },
+  { href: "/#how", label: "How it works" },
+  { href: "/demo", label: "Demo" },
+  { href: "/#compare", label: "Compare" },
 ];
 
 export const Navbar = () => {
   const { theme, toggle } = useTheme();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -25,7 +27,7 @@ export const Navbar = () => {
     <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "py-2" : "py-4"}`}>
       <nav className={`mx-auto max-w-7xl px-4 sm:px-6 ${scrolled ? "glass rounded-2xl mx-3 sm:mx-6" : ""} transition-all duration-300`}>
         <div className="flex items-center justify-between h-14">
-          <a href="#" className="flex items-center gap-2 group">
+          <Link to="/" className="flex items-center gap-2 group">
             <div className="relative">
               <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-primary to-accent blur-md opacity-60 group-hover:opacity-100 transition" />
               <div className="relative h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center">
@@ -35,14 +37,20 @@ export const Navbar = () => {
             <span className="font-bold text-lg tracking-tight">
               Integrity<span className="gradient-text">AI</span>
             </span>
-          </a>
+          </Link>
 
           <div className="hidden md:flex items-center gap-1">
             {links.map(l => (
-              <a key={l.href} href={l.href}
-                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted">
+              <Link key={l.href} to={l.href}
+                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted"
+                onClick={(e) => {
+                  if (l.href.startsWith("/#") && location.pathname === "/") {
+                    e.preventDefault();
+                    document.getElementById(l.href.substring(2))?.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}>
                 {l.label}
-              </a>
+              </Link>
             ))}
           </div>
 
@@ -56,7 +64,7 @@ export const Navbar = () => {
               <Moon className={`h-5 w-5 absolute transition-all duration-500 text-primary ${theme === "light" ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-90 scale-50"}`} />
             </button>
             <Button variant="hero" size="sm" className="hidden sm:inline-flex" asChild>
-              <a href="#checker">Try Now</a>
+              <Link to="/demo">Try Now</Link>
             </Button>
             <button className="md:hidden h-10 w-10 grid place-items-center rounded-lg glass" onClick={() => setOpen(v => !v)} aria-label="Menu">
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -67,10 +75,17 @@ export const Navbar = () => {
         {open && (
           <div className="md:hidden glass rounded-2xl mt-2 p-3 flex flex-col">
             {links.map(l => (
-              <a key={l.href} href={l.href} onClick={() => setOpen(false)}
+              <Link key={l.href} to={l.href} 
+                onClick={(e) => {
+                  setOpen(false);
+                  if (l.href.startsWith("/#") && location.pathname === "/") {
+                    e.preventDefault();
+                    document.getElementById(l.href.substring(2))?.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
                 className="px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted">
                 {l.label}
-              </a>
+              </Link>
             ))}
           </div>
         )}

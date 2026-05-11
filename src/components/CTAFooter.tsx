@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ShieldCheck, Twitter, Github, Linkedin } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export const CTA = () => (
   <section className="py-24 relative overflow-hidden">
@@ -13,10 +14,10 @@ export const CTA = () => (
           <p className="text-muted-foreground md:text-lg max-w-xl mx-auto mb-8">Join thousands of students and educators using IntegrityAI today.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button variant="hero" size="lg" asChild>
-              <a href="#checker">Start Checking Now <ArrowRight className="h-4 w-4" /></a>
+              <Link to="/demo">Start Checking Now <ArrowRight className="h-4 w-4" /></Link>
             </Button>
             <Button variant="glass" size="lg" asChild>
-              <a href="#features">Explore features</a>
+              <Link to="/#features">Explore features</Link>
             </Button>
           </div>
         </div>
@@ -30,19 +31,19 @@ export const Footer = () => (
     <div className="container">
       <div className="grid md:grid-cols-4 gap-8 mb-8">
         <div className="md:col-span-2">
-          <a href="#" className="flex items-center gap-2 mb-3">
+          <Link to="/" className="flex items-center gap-2 mb-3">
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center">
               <ShieldCheck className="h-4 w-4 text-primary-foreground" />
             </div>
             <span className="font-bold">Integrity<span className="gradient-text">AI</span></span>
-          </a>
+          </Link>
           <p className="text-sm text-muted-foreground max-w-sm">Explainable plagiarism &amp; AI detection. Trusted by students, researchers and institutions.</p>
         </div>
         <div>
           <div className="font-semibold text-sm mb-3">Product</div>
           <ul className="space-y-2 text-sm text-muted-foreground">
-            <li><a href="#features" className="hover:text-primary transition">Features</a></li>
-            <li><a href="#checker" className="hover:text-primary transition">Demo</a></li>
+            <li><Link to="/#features" className="hover:text-primary transition">Features</Link></li>
+            <li><Link to="/demo" className="hover:text-primary transition">Demo</Link></li>
           </ul>
         </div>
         <div>

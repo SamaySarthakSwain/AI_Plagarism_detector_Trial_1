@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, FileSearch, Brain, Lock } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export const Hero = () => {
   return (
@@ -29,13 +30,13 @@ export const Hero = () => {
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-14">
             <Button variant="hero" size="lg" asChild>
-              <a href="#checker">
+              <Link to="/demo">
                 Check Your Document
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
             <Button variant="glass" size="lg" asChild>
-              <a href="#how">See how it works</a>
+              <Link to="/#how">See how it works</Link>
             </Button>
           </div>
 
