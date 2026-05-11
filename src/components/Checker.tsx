@@ -3,30 +3,37 @@ import { Button } from "@/components/ui/button";
 import {
   Brain, UserCheck, Image as ImageIcon, FileSearch, FileText, Repeat,
   SpellCheck, Languages, Calculator, Upload, Loader2, Download, Sparkles,
-  AlertTriangle, CheckCircle2,
+  AlertTriangle, CheckCircle2, Fingerprint, BookOpen, GitBranch, Globe, Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import mammoth from "mammoth"; // Works in-browser for DOCX
+import mammoth from "mammoth";
 
 type ToolId =
   | "ai" | "humanizer" | "image" | "plagiarism"
-  | "summarizer" | "paraphraser" | "grammar" | "translator" | "wordcount";
+  | "summarizer" | "paraphraser" | "grammar" | "translator" | "wordcount"
+  | "stylometry" | "citations" | "rewrite-chain" | "internet-scan" | "hybrid-authorship";
 
 const tools: {
   id: ToolId; label: string;
   icon: React.ComponentType<{ className?: string }>;
-  placeholder: string; cta: string;
+  placeholder: string; cta: string; badge?: string;
 }[] = [
-  { id: "ai",         label: "AI / GPT Detector",  icon: Brain,      placeholder: "Paste or upload text to check for AI content…", cta: "Detect AI" },
-  { id: "plagiarism", label: "Plagiarism Checker",  icon: FileSearch, placeholder: "Paste or upload document to check for plagiarism…",   cta: "Check Plagiarism" },
-  { id: "humanizer",  label: "AI Humanizer",        icon: UserCheck,  placeholder: "Paste AI-written text to humanize it…",                    cta: "Humanize" },
-  { id: "image",      label: "AI Image Detector",   icon: ImageIcon,  placeholder: "Upload an image to check if it's AI-generated…",           cta: "Detect Image" },
-  { id: "summarizer", label: "AI Summarizer",       icon: FileText,   placeholder: "Paste long text to summarize…",                            cta: "Summarize" },
-  { id: "paraphraser",label: "AI Paraphraser",      icon: Repeat,     placeholder: "Paste text to rewrite in a fresh voice…",                  cta: "Paraphrase" },
-  { id: "grammar",    label: "AI Grammar Check",    icon: SpellCheck, placeholder: "Paste text to check grammar & clarity…",                   cta: "Check Grammar" },
-  { id: "translator", label: "AI Translator",       icon: Languages,  placeholder: "Paste text to translate…",                                 cta: "Translate" },
-  { id: "wordcount",  label: "Word Counter",        icon: Calculator, placeholder: "Paste text to count words…",                             cta: "Count" },
+  { id: "ai",               label: "AI / GPT Detector",        icon: Brain,      placeholder: "Paste or upload text to check for AI content…",           cta: "Detect AI" },
+  { id: "plagiarism",       label: "Plagiarism Checker",        icon: FileSearch, placeholder: "Paste or upload document to check for plagiarism…",        cta: "Check Plagiarism" },
+  { id: "hybrid-authorship",label: "Hybrid Authorship",         icon: Users,      placeholder: "Paste document to detect paragraph-level AI vs human…",    cta: "Segment Authorship", badge: "NEW" },
+  { id: "stylometry",       label: "Style Fingerprint",         icon: Fingerprint,placeholder: "Paste text to analyze writing style fingerprint…",         cta: "Analyze Style",      badge: "NEW" },
+  { id: "citations",        label: "Citation Fraud Checker",    icon: BookOpen,   placeholder: "Paste academic text to verify citations…",                 cta: "Check Citations",    badge: "NEW" },
+  { id: "rewrite-chain",    label: "AI Rewrite Detection",      icon: GitBranch,  placeholder: "Paste text to detect ChatGPT→Quillbot rewrite chains…",   cta: "Detect Rewrites",   badge: "NEW" },
+  { id: "internet-scan",    label: "Internet Scan",             icon: Globe,      placeholder: "Paste text to scan for web plagiarism in real time…",      cta: "Scan Internet",      badge: "NEW" },
+  { id: "humanizer",        label: "AI Humanizer",              icon: UserCheck,  placeholder: "Paste AI-written text to humanize it…",                    cta: "Humanize" },
+  { id: "image",            label: "AI Image Detector",         icon: ImageIcon,  placeholder: "Upload an image to check if it's AI-generated…",           cta: "Detect Image" },
+  { id: "summarizer",       label: "AI Summarizer",             icon: FileText,   placeholder: "Paste long text to summarize…",                            cta: "Summarize" },
+  { id: "paraphraser",      label: "AI Paraphraser",            icon: Repeat,     placeholder: "Paste text to rewrite in a fresh voice…",                  cta: "Paraphrase" },
+  { id: "grammar",          label: "AI Grammar Check",          icon: SpellCheck, placeholder: "Paste text to check grammar & clarity…",                   cta: "Check Grammar" },
+  { id: "translator",       label: "AI Translator",             icon: Languages,  placeholder: "Paste text to translate…",                                 cta: "Translate" },
+  { id: "wordcount",        label: "Word Counter",              icon: Calculator, placeholder: "Paste text to count words…",                               cta: "Count" },
 ];
+
 
 type Verdict = "ai" | "plagiarism" | "original" | "suspicious";
 
@@ -177,22 +184,56 @@ export const Checker = () => {
     }
   };
 
+  const ADVANCED_ROUTES: Partial<Record<ToolId, string>> = {
+    "stylometry":        "/api/stylometry",
+    "citations":         "/api/citations",
+    "rewrite-chain":     "/api/rewrite-chain",
+    "internet-scan":     "/api/internet-scan",
+    "hybrid-authorship": "/api/hybrid-authorship",
+  };
+
   const run = async () => {
     if (!text.trim()) { toast.error("Please enter some text or upload a file."); return; }
     setLoading(true); setReport(null);
 
     try {
+      const advancedRoute = ADVANCED_ROUTES[active];
+      if (advancedRoute) {
+        const res = await fetch(advancedRoute, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Analysis failed");
+        // Map advanced results into the Report shape for display
+        setReport({
+          fileName, wordCount: text.split(/\s+/).filter(Boolean).length,
+          charCount: text.length, sentenceCount: 0,
+          plagiarism: data.overallRisk ?? data.rewriteChainScore ?? data.maxSimilarity ?? 0,
+          aiScore: data.aiLikelihood?.aiLikelihoodScore ?? data.overallAiScore ?? 0,
+          human: 100 - (data.overallAiScore ?? data.aiLikelihood?.aiLikelihoodScore ?? 0),
+          unique: 100 - (data.overallRisk ?? data.maxSimilarity ?? 0),
+          integrity: Math.max(0, 100 - (data.overallRisk ?? data.rewriteChainScore ?? 0)),
+          sentences: [], tool: active,
+          reasons: [
+            data.verdict ?? data.overallVerdict ?? "",
+            ...(data.evidence ?? data.flags ?? data.authorshipShifts?.map((s: {warning: string}) => s.warning) ?? []),
+          ].filter(Boolean),
+          output: JSON.stringify(
+            data.segments ?? data.results ?? data.matches ?? data.aiLikelihood ?? data,
+            null, 2
+          ).slice(0, 3000),
+        });
+        return;
+      }
+
       const res = await fetch("/api/analyze", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ text, tool: active }),
       });
-
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error || "Analysis failed");
-      }
-
+      if (!res.ok) { const body = await res.json(); throw new Error(body.error || "Analysis failed"); }
       const data = await res.json();
       setReport({ ...data, fileName });
     } catch (e) {
@@ -235,7 +276,8 @@ export const Checker = () => {
                   <button key={t.id} onClick={() => { setActive(t.id); setReport(null); }}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition ${t.id === active ? "bg-gradient-to-r from-primary/15 to-accent/15 text-foreground border-l-2 border-primary font-semibold" : "text-muted-foreground hover:bg-muted"}`}>
                     <t.icon className={`h-4 w-4 shrink-0 ${t.id === active ? "text-primary" : ""}`} />
-                    <span className="truncate">{t.label}</span>
+                    <span className="truncate flex-1">{t.label}</span>
+                    {t.badge && <span className="text-[9px] font-bold bg-primary/20 text-primary rounded px-1 py-0.5">{t.badge}</span>}
                   </button>
                 ))}
               </nav>

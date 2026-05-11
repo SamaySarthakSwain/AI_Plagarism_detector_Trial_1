@@ -102,7 +102,7 @@ def build_index():
     with open(TEXTS_PATH, "w", encoding="utf-8") as f:
         json.dump(REFERENCE_CORPUS, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ FAISS index built with {len(REFERENCE_CORPUS)} vectors (dim={dimension}).")
+    print(f"FAISS index built with {len(REFERENCE_CORPUS)} vectors (dim={dimension}).")
 
 
 def chunk_text(text: str) -> list[str]:
