@@ -599,6 +599,38 @@ app.post('/api/hybrid-authorship', async (req, res) => {
   }
 });
 
+// ─── ROUTE: /api/knowledge-graph (Feature 6) ─────────────────────────────────
+app.post('/api/knowledge-graph', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text?.trim()) return res.status(400).json({ error: 'No text provided.' });
+    if (IS_SERVERLESS) return res.status(503).json({ error: 'Knowledge graph requires local server.' });
+    const result = await runPythonEngine('knowledge_graph.py', text, 20000);
+    return res.json(result);
+  } catch (err) { return res.status(500).json({ error: err.message }); }
+});
+
+// ─── ROUTE: /api/cross-lang (Feature 9 & 10) ──────────────────────────────────
+app.post('/api/cross-lang', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text?.trim()) return res.status(400).json({ error: 'No text provided.' });
+    if (IS_SERVERLESS) return res.status(503).json({ error: 'Cross-lang requires local server.' });
+    const result = await runPythonEngine('cross_lang.py', text, 30000);
+    return res.json(result);
+  } catch (err) { return res.status(500).json({ error: err.message }); }
+});
+
+// ─── ROUTE: /api/xai-report (Feature 12) ──────────────────────────────────────
+app.post('/api/xai-report', async (req, res) => {
+  try {
+    const { results } = req.body || {};
+    if (!results) return res.status(400).json({ error: 'No analysis results provided.' });
+    const result = await runPythonEngine('xai_report.py', JSON.stringify(results), 10000);
+    return res.json(result);
+  } catch (err) { return res.status(500).json({ error: err.message }); }
+});
+
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -612,10 +644,14 @@ app.get('/api/health', (_req, res) => {
       rewriteChain: !IS_SERVERLESS,
       internetScan: !IS_SERVERLESS,
       hybridAuthorship: !IS_SERVERLESS,
+      knowledgeGraph: !IS_SERVERLESS,
+      crossLang: !IS_SERVERLESS,
+      xaiReport: true,
       multimodal: !IS_SERVERLESS,
     }
   });
 });
+
 
 // ─── Global error middleware (last resort) ────────────────────────────────────
 app.use((err, _req, res, _next) => {

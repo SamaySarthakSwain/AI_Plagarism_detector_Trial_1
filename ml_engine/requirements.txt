@@ -1,12 +1,12 @@
-scikit-learn
-pandas
-joblib
-datasets
-numpy
 sentence-transformers
 faiss-cpu
-pytesseract
-Pillow
-pdf2image
-python-pptx
-PyMuPDF
+spacy
+numpy
+mammoth
+any-text
+urllib3
+requests
+scikit-learn
+pandas
+# For spaCy model:
+# python -m spacy download en_core_web_sm

@@ -11,7 +11,8 @@ import mammoth from "mammoth";
 type ToolId =
   | "ai" | "humanizer" | "image" | "plagiarism"
   | "summarizer" | "paraphraser" | "grammar" | "translator" | "wordcount"
-  | "stylometry" | "citations" | "rewrite-chain" | "internet-scan" | "hybrid-authorship";
+  | "stylometry" | "citations" | "rewrite-chain" | "internet-scan" | "hybrid-authorship"
+  | "knowledge-graph" | "cross-lang" | "xai-report";
 
 const tools: {
   id: ToolId; label: string;
@@ -21,11 +22,15 @@ const tools: {
   { id: "ai",               label: "AI / GPT Detector",        icon: Brain,      placeholder: "Paste or upload text to check for AI content…",           cta: "Detect AI" },
   { id: "plagiarism",       label: "Plagiarism Checker",        icon: FileSearch, placeholder: "Paste or upload document to check for plagiarism…",        cta: "Check Plagiarism" },
   { id: "hybrid-authorship",label: "Hybrid Authorship",         icon: Users,      placeholder: "Paste document to detect paragraph-level AI vs human…",    cta: "Segment Authorship", badge: "NEW" },
+  { id: "knowledge-graph",  label: "Logic Graph",               icon: Sparkles,   placeholder: "Paste text to extract subject-verb-object logic graph…",   cta: "Map Logic",          badge: "NEW" },
+  { id: "cross-lang",       label: "Cross-Language Check",      icon: Languages,  placeholder: "Paste text to scan for translation plagiarism…",           cta: "Check Languages",    badge: "NEW" },
   { id: "stylometry",       label: "Style Fingerprint",         icon: Fingerprint,placeholder: "Paste text to analyze writing style fingerprint…",         cta: "Analyze Style",      badge: "NEW" },
   { id: "citations",        label: "Citation Fraud Checker",    icon: BookOpen,   placeholder: "Paste academic text to verify citations…",                 cta: "Check Citations",    badge: "NEW" },
   { id: "rewrite-chain",    label: "AI Rewrite Detection",      icon: GitBranch,  placeholder: "Paste text to detect ChatGPT→Quillbot rewrite chains…",   cta: "Detect Rewrites",   badge: "NEW" },
   { id: "internet-scan",    label: "Internet Scan",             icon: Globe,      placeholder: "Paste text to scan for web plagiarism in real time…",      cta: "Scan Internet",      badge: "NEW" },
+  { id: "xai-report",       label: "Deep AI Report",            icon: FileText,   placeholder: "Analyze text first, then generate a deep reasoning report…",cta: "Generate Deep Report",badge: "PRO" },
   { id: "humanizer",        label: "AI Humanizer",              icon: UserCheck,  placeholder: "Paste AI-written text to humanize it…",                    cta: "Humanize" },
+
   { id: "image",            label: "AI Image Detector",         icon: ImageIcon,  placeholder: "Upload an image to check if it's AI-generated…",           cta: "Detect Image" },
   { id: "summarizer",       label: "AI Summarizer",             icon: FileText,   placeholder: "Paste long text to summarize…",                            cta: "Summarize" },
   { id: "paraphraser",      label: "AI Paraphraser",            icon: Repeat,     placeholder: "Paste text to rewrite in a fresh voice…",                  cta: "Paraphrase" },
@@ -190,6 +195,9 @@ export const Checker = () => {
     "rewrite-chain":     "/api/rewrite-chain",
     "internet-scan":     "/api/internet-scan",
     "hybrid-authorship": "/api/hybrid-authorship",
+    "knowledge-graph":   "/api/knowledge-graph",
+    "cross-lang":        "/api/cross-lang",
+    "xai-report":        "/api/xai-report",
   };
 
   const run = async () => {
