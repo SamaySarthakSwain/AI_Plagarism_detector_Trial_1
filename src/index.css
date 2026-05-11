@@ -100,7 +100,7 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-transparent text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     transition: background-color 300ms ease, color 300ms ease;
   }

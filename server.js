@@ -259,13 +259,19 @@ app.post('/api/analyze', async (req, res) => {
     const maxPlag = analyzed.reduce((m, a) => a.rawPlagScore > m ? a.rawPlagScore : m, 0);
     let plagPct   = Math.min(100, Math.max(0, Math.round(avgPlag * 0.3 + maxPlag * 0.7)));
 
-    // ── Local ML model (local dev only — Python not on Netlify) ───────────
+    // ── Local Semantic Search (local dev only) ───────────
     if (!IS_SERVERLESS) {
       try {
-        const mlScore = await runPythonModel(text);
-        if (mlScore !== null) {
-          aiPct = Math.round(aiPct * 0.4 + mlScore * 0.6);
-          reasons.unshift(`🧠 Local ML Model: ${Math.round(mlScore)}% AI probability.`);
+        const semanticRes = await runSemanticSearch(text);
+        if (semanticRes && typeof semanticRes.maxSimilarity === 'number') {
+          const sim = semanticRes.maxSimilarity;
+          plagPct = Math.round(plagPct * 0.6 + sim * 0.4);
+          if (sim > 50) {
+            reasons.unshift(`🔍 Vector Search: ${Math.round(sim)}% semantic similarity found.`);
+            if (semanticRes.matches && semanticRes.matches.length > 0) {
+                reasons.unshift(`📄 Source Match: "${semanticRes.matches[0].matched_source}"`);
+            }
+          }
         }
       } catch (_) { /* skip silently */ }
     }
@@ -375,18 +381,48 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
-// ─── Helper: run Python ML model safely ──────────────────────────────────────
-function runPythonModel(text) {
+// ─── ROUTE: /api/analyze-image ────────────────────────────────────────────────
+app.post('/api/analyze-image', async (req, res) => {
+  let tmpFile = null;
+  try {
+    const { image, filename } = req.body || {};
+    if (!image || !filename) return res.status(400).json({ error: 'Missing image or filename' });
+
+    const buffer = Buffer.from(image, 'base64');
+    tmpFile = bufferToTmpFile(buffer, filename);
+
+    const result = await runMultimodalSearch(tmpFile);
+    cleanTmp(tmpFile);
+
+    if (!result) return res.status(500).json({ error: 'Multi-modal analysis failed locally.' });
+    if (result.error) return res.status(500).json({ error: result.error });
+
+    return res.json({
+      text: result.ocr_extracted_text || '',
+      plagiarism: result.text_similarity_score || 0,
+      visualPlagiarism: result.visual_similarity_score || 0,
+      integrity: 100 - (result.hybrid_plagiarism_score || 0),
+      matches: [result.visual_match_source, result.text_match_source].filter(Boolean)
+    });
+  } catch (err) {
+    cleanTmp(tmpFile);
+    console.error('Analyze image error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Helper: run Python Semantic Search model ───────────────────────────────
+function runSemanticSearch(text) {
   return new Promise((resolve) => {
     let done = false;
     const finish = (v) => { if (!done) { done = true; resolve(v); } };
 
-    // Timeout safety net
-    const timer = setTimeout(() => finish(null), 8000);
+    // Timeout safety net (increased for model load)
+    const timer = setTimeout(() => finish(null), 15000);
 
     let pyProcess;
     try {
-      pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', 'predict.py')]);
+      pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', 'semantic_search.py')]);
     } catch (_) {
       clearTimeout(timer);
       return finish(null);
@@ -408,8 +444,51 @@ function runPythonModel(text) {
     pyProcess.on('close', () => {
       clearTimeout(timer);
       try {
+        const match = out.match(/\{[\s\S]*\}/);
+        const parsed = JSON.parse(match ? match[0] : out.trim());
+        finish(parsed);
+      } catch (e) {
+        console.error('Failed to parse multimodal JSON. Raw out:', out);
+        finish(null);
+      }
+    });
+  });
+}
+
+// ─── Helper: run Python Multi-Modal Search model ────────────────────────────
+function runMultimodalSearch(imagePath) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+
+    const timer = setTimeout(() => finish(null), 60000);
+
+    let pyProcess;
+    try {
+      pyProcess = spawn('python', [path.join(__dirname, 'ml_engine', 'multimodal_search.py')]);
+    } catch (_) {
+      clearTimeout(timer);
+      return finish(null);
+    }
+
+    pyProcess.on('error', () => { clearTimeout(timer); finish(null); });
+
+    try {
+      pyProcess.stdin.write(imagePath);
+      pyProcess.stdin.end();
+    } catch (_) {
+      clearTimeout(timer);
+      return finish(null);
+    }
+
+    let out = '';
+    pyProcess.stdout.on('data', (d) => { out += d.toString(); });
+    pyProcess.stderr.on('data', (d) => console.error('Python stderr:', d.toString()));
+    pyProcess.on('close', () => {
+      clearTimeout(timer);
+      try {
         const parsed = JSON.parse(out.trim());
-        finish(typeof parsed.aiScore === 'number' ? parsed.aiScore : null);
+        finish(parsed);
       } catch (_) {
         finish(null);
       }

@@ -86,7 +86,58 @@ export const Checker = () => {
         return;
       }
 
-      // 3. Fallback to API for PDF and other binary formats
+      // 3. Handle Images routing to /api/analyze-image
+      const imgFormats = [".png", ".jpg", ".jpeg", ".webp"];
+      if (imgFormats.some(ext => lname.endsWith(ext))) {
+        if (active !== "image") setActive("image");
+        toast.info(`Processing Image via Multi-Modal Engine…`);
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(f);
+        reader.onload = async () => {
+          try {
+            const base64 = (reader.result as string).split(",")[1];
+            const res = await fetch("/api/analyze-image", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ image: base64, filename: f.name }),
+            });
+            if (!res.ok) {
+              const body = await res.json();
+              throw new Error(body.error || "Analysis failed");
+            }
+            const data = await res.json();
+            
+            setText(data.text || "[Image Processed - No Text Extracted]");
+            
+            setReport({
+              fileName: f.name,
+              wordCount: (data.text || "").split(/\s+/).filter(Boolean).length,
+              charCount: (data.text || "").length,
+              sentenceCount: 0,
+              plagiarism: data.plagiarism,
+              aiScore: 0,
+              human: 100,
+              unique: 100 - data.plagiarism,
+              integrity: data.integrity,
+              sentences: [],
+              reasons: data.matches?.length > 0 
+                ? data.matches.map((m: string) => `Match Found: ${m}`)
+                : ["No visual or text matches found."],
+              tool: "image",
+              output: `Visual Similarity Score: ${data.visualPlagiarism}%\nText Similarity Score: ${data.plagiarism}%`
+            });
+            toast.success("Image Analyzed!");
+          } catch(e) {
+            toast.error(errMsg(e, "Image analysis failed"));
+          } finally {
+            setLoading(false);
+          }
+        };
+        return;
+      }
+
+      // 4. Fallback to API for PDF and other binary formats
       // SAFETY CHECK: Vercel has a 4.5MB request limit. Base64 adds ~33%.
       // So we limit to 3MB raw file size to be safe.
       if (f.size > 3 * 1024 * 1024) {
@@ -196,27 +247,27 @@ export const Checker = () => {
                 className="relative flex-1 rounded-xl bg-muted/20 border-2 border-dashed border-border focus-within:border-primary transition mb-4">
                 <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={tool.placeholder}
                   className="w-full h-full min-h-[260px] bg-transparent p-5 text-sm resize-none focus:outline-none placeholder:text-muted-foreground/70" />
-                {!text &amp;&amp; <div className="pointer-events-none absolute bottom-3 right-4 text-xs text-muted-foreground/60">or drag &amp; drop a file</div>}
+                {!text && <div className="pointer-events-none absolute bottom-3 right-4 text-xs text-muted-foreground/60">or drag & drop a file</div>}
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="text-xs text-muted-foreground">{text.trim().split(/\s+/).filter(Boolean).length} words · {text.length} chars</div>
                 <div className="flex gap-2 sm:justify-end">
                   <Button variant="glass" onClick={()=>inputRef.current?.click()} disabled={loading}><Upload className="h-4 w-4" /> Upload File</Button>
-                  <input ref={inputRef} type="file" className="hidden" onChange={e=>e.target.files?.[0] &amp;&amp; onFile(e.target.files[0])} />
+                  <input ref={inputRef} type="file" className="hidden" onChange={e=>e.target.files?.[0] && onFile(e.target.files[0])} />
                   <Button variant="hero" onClick={run} disabled={loading} size="lg">
                     {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Working…</> : <><Sparkles className="h-4 w-4" /> {tool.cta}</>}
                   </Button>
                 </div>
               </div>
 
-              {report &amp;&amp; (
+              {report && (
                 <div className="mt-6 animate-fade-up">
                   <div className="flex items-center justify-between mb-4">
                     <div><div className="font-semibold text-sm">{report.fileName}</div><div className="text-xs text-muted-foreground">{report.wordCount} words · {report.sentenceCount} sentences</div></div>
                     <Button variant="glass" size="sm" onClick={download}><Download className="h-4 w-4" /> Report</Button>
                   </div>
-                  {report.tool !== "wordcount" &amp;&amp; (
+                  {report.tool !== "wordcount" && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                       <Stat label="Plagiarism" value={report.plagiarism} color="hsl(var(--destructive))" />
                       <Stat label="AI" value={report.aiScore} color="hsl(var(--warning))" />
@@ -224,7 +275,7 @@ export const Checker = () => {
                       <Stat label="Integrity" value={report.integrity} color="hsl(var(--success))" />
                     </div>
                   )}
-                  {report.output &amp;&amp; <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 text-sm leading-relaxed mb-4 whitespace-pre-wrap"><div className="text-[10px] uppercase tracking-wider text-primary font-semibold mb-2">Output</div>{report.output}</div>}
+                  {report.output && <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 text-sm leading-relaxed mb-4 whitespace-pre-wrap"><div className="text-[10px] uppercase tracking-wider text-primary font-semibold mb-2">Output</div>{report.output}</div>}
                   <div className="rounded-xl bg-muted/30 border border-border p-4 max-h-56 overflow-auto text-sm leading-relaxed mb-3">
                     {report.sentences.map((s, i) => (<span key={i} className={`${verdictClass(s.verdict)} px-1 rounded mr-1 cursor-help`} title={`${s.verdict.toUpperCase()} · ${s.confidence}%`}>{s.text}{" "}</span>))}
                   </div>

@@ -8,7 +8,6 @@ const links = [
   { href: "#how", label: "How it works" },
   { href: "#checker", label: "Demo" },
   { href: "#compare", label: "Compare" },
-  { href: "#pricing", label: "Pricing" },
 ];
 
 export const Navbar = () => {

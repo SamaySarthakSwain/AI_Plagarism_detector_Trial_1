@@ -6,9 +6,11 @@ import { Checker } from "@/components/Checker";
 import { Compare } from "@/components/Compare";
 import { Testimonials } from "@/components/Testimonials";
 import { CTA, Footer } from "@/components/CTAFooter";
+import { AuroraBackground } from "@/components/AuroraBackground";
 
 const Index = () => (
-  <div className="min-h-screen bg-background text-foreground">
+  <div className="min-h-screen bg-transparent text-foreground relative z-0">
+    <AuroraBackground />
     <Navbar />
     <main>
       <Hero />
@@ -24,4 +26,3 @@ const Index = () => (
 );
 
 export default Index;
-

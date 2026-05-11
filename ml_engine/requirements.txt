@@ -3,3 +3,10 @@ pandas
 joblib
 datasets
 numpy
+sentence-transformers
+faiss-cpu
+pytesseract
+Pillow
+pdf2image
+python-pptx
+PyMuPDF
